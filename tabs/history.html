@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BTC Price History Search</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #fff;
+      color: #000;
+      margin: 0;
+      padding: 0;
+      text-align: left;
+    }
+    h2 {
+      font-size: 1.2rem;
+      font-weight: bold;
+      font-family: Arial, sans-serif;
+      text-align: left;
+    }
+    label {
+      font-size: 80%;
+      font-family: Arial, sans-serif;
+      text-align: left;
+      display: block;
+    }
+    input[type="datetime-local"] {
+      width: 220px;
+      font-family: Arial, sans-serif;
+      margin-bottom: 10px;
+    }
+    .button {
+      background-color: #fff;
+      color: #000;
+      border: 1px solid #ccc;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      transition: background-color 0.2s ease;
+    }
+    .button:hover {
+      background-color: #eee;
+    }
+    #results-box {
+      display: none;
+      background: #f4f4f4;
+      padding: 20px;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #000;
+      font-family: Arial, sans-serif;
+      text-align: left;
+      margin-top: 0;
+    }
+    #history-scroll-wrapper {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      background: #fff;
+      width: 330px;
+    }
+    #history-table {
+      font-family: Arial, sans-serif;
+      font-size: 0.85rem;
+      border: 1px solid #ccc;
+      border-collapse: collapse;
+      width: 100%;
+      display: none;
+    }
+    #history-table th, #history-table td {
+      border: 1px solid #ccc;
+      padding: 0 4px;
+      text-align: left;
+    }
+    #results-summary {
+      font-size: 1rem;
+      font-family: Arial, sans-serif;
+      white-space: nowrap;
+      text-align: left;
+    }
+    #copy-toast {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: #e6f4ea;
+      color: #137333;
+      border: 2px solid #137333;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-family: Arial, sans-serif;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 9999;
+    }
+    #copy-toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div style="padding: 0; max-width: 700px; margin: 0 20px;">
+    <h2>Search Price History</h2>
+    <div style="margin-top: 10px;">
+      <div style="margin-bottom: 8px;">
+        <label for="start-time">Start Time:</label><br />
+        <input type="datetime-local" id="start-time">
+      </div>
+      <div style="margin-bottom: 8px;">
+        <label for="end-time">End Time:</label><br />
+        <input type="datetime-local" id="end-time">
+      </div>
+      <button id="search-btn" class="button" style="margin-right: 10px;">Search</button>
+    </div>
+    <div style="margin-top: 20px;">
+      <div id="results-box">
+        <h3 style="margin: 0 0 6px 0; font-size: 0.9375rem; font-weight: bold;">Results</h3>
+        <div style="display: flex; gap: 20px;">
+          <div id="history-scroll-wrapper">
+            <table id="history-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Price</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="results-summary"></div>
+        </div>
+        <div id="history-export-btns" style="margin-top: 6px;">
+          <button id="copy-results-btn" class="button" style="margin-right: 4px;">Copy</button>
+          <button id="export-csv-btn" class="button">Export CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="copy-toast">Copied to clipboard!</div>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const nowUTC = new Date();
+      const nowEST = new Date(nowUTC.toLocaleString("en-US", { timeZone: "America/New_York" }));
+      const oneHourAgoEST = new Date(nowEST.getTime() - 60 * 60 * 1000);
+      const toDatetimeLocal = dt => {
+        const pad = n => String(n).padStart(2, '0');
+        return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+      };
+      document.getElementById("start-time").value = toDatetimeLocal(oneHourAgoEST);
+      document.getElementById("end-time").value = toDatetimeLocal(nowEST);
+
+      document.getElementById("search-btn").addEventListener("click", () => {
+        const startTime = document.getElementById("start-time").value;
+        const endTime = document.getElementById("end-time").value;
+        if (!startTime || !endTime) {
+          document.getElementById('history-table').style.display = 'none';
+          document.getElementById('results-box').style.display = 'none';
+          return;
+        }
+        fetch("/search-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ start: startTime, end: endTime })
+        })
+        .then(response => response.json())
+        .then(data => {
+          const table = document.getElementById("history-table");
+          const tbody = table.querySelector("tbody");
+          tbody.innerHTML = "";
+          if (!Array.isArray(data.results) || data.results.length === 0) {
+            table.style.display = 'none';
+            document.getElementById('results-box').style.display = 'block';
+            document.getElementById('results-summary').innerHTML = "";
+            return;
+          }
+          data.results.forEach(item => {
+            const row = document.createElement("tr");
+            const ts = document.createElement("td");
+            ts.textContent = item[0];
+            const price = document.createElement("td");
+            price.textContent = `$${Number(item[1]).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            row.appendChild(ts);
+            row.appendChild(price);
+            tbody.appendChild(row);
+          });
+          table.style.display = "table";
+          document.getElementById('results-box').style.display = 'block';
+          // Summary stats
+          const prices = Array.from(document.querySelectorAll("#history-table tbody tr td:last-child"))
+            .map(td => parseFloat(td.textContent.replace(/[^0-9.-]+/g, "")))
+            .filter(n => !isNaN(n));
+          if (prices.length > 1) {
+            const max = Math.max(...prices);
+            const min = Math.min(...prices);
+            const totalMove = prices[prices.length - 1] - prices[0];
+            const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+            const variance = prices.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / prices.length;
+            const volatility = Math.sqrt(variance);
+            const percentMove = ((totalMove / min) * 100).toFixed(2);
+            const range = max - min;
+            const rangePct = ((range / min) * 100).toFixed(2);
+            const volatilityPct = ((volatility / min) * 100).toFixed(2);
+
+            // Peak 30s Volatility (matching backend logic with fixed 5s chunking)
+            let maxVol30s = 0;
+            const rows = Array.from(document.querySelectorAll("#history-table tbody tr"))
+              .map(tr => {
+                const ts = tr.cells[0].textContent.trim();
+                const price = parseFloat(tr.cells[1].textContent.replace(/[^0-9.-]+/g, ""));
+                return { ts: new Date(ts).getTime(), price };
+              })
+              .filter(item => !isNaN(item.ts) && !isNaN(item.price));
+
+            for (let i = 0; i < rows.length; i++) {
+              const startTime = rows[i].ts;
+              const windowData = rows.filter(d => d.ts >= startTime && d.ts <= startTime + 30000);
+              if (windowData.length < 6) continue;
+
+              const groupedReturns = [];
+              for (let j = 0; j <= windowData.length - 6; j += 5) {
+                const start = windowData[j].price;
+                const end = windowData[j + 5].price;
+                if (start !== 0) {
+                  const pctChange = (end - start) / start;
+                  groupedReturns.push(pctChange);
+                }
+              }
+
+              if (groupedReturns.length > 0) {
+                const mean = groupedReturns.reduce((a, b) => a + b, 0) / groupedReturns.length;
+                const variance = groupedReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / groupedReturns.length;
+                const stdDev = Math.sqrt(variance) * 100;
+                if (stdDev > maxVol30s) maxVol30s = stdDev;
+              }
+            }
+            const peak30sVolPct = maxVol30s.toFixed(2);
+
+            // Peak Momentum
+            let peakMomentum = 0;
+            for (let i = 1; i < prices.length; i++) {
+              const momentum = prices[i] - prices[i - 1];
+              if (Math.abs(momentum) > Math.abs(peakMomentum)) {
+                peakMomentum = momentum;
+              }
+            }
+            const peakMomentumPct = ((peakMomentum / min) * 100).toFixed(2);
+
+            const summary = `
+              <table style="font-size: 0.9rem; font-family: Arial, sans-serif;">
+                <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Total Move:</td><td style="text-align: left;">$${totalMove.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>
+                <tr><td></td><td style="text-align: left;">${percentMove}%</td></tr>
+                <tr><td colspan="2" style="height: 8px;"></td></tr>
+                <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Max:</td><td style="text-align: left;">$${max.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>
+                <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Min:</td><td style="text-align: left;">$${min.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>
+                <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Range:</td><td style="text-align: left;">$${range.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>
+                <tr><td></td><td style="text-align: left;">${rangePct}%</td></tr>
+                <tr><td colspan="2" style="height: 8px;"></td></tr>
+                <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Volatility:</td><td style="text-align: left;">${volatilityPct}%</td></tr>
+                <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Peak 30s Volatility:</td><td style="text-align: left;">${peak30sVolPct}%</td></tr>
+                <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Peak Momentum:</td><td style="text-align: left;">${peakMomentumPct}%</td></tr>
+              </table>
+            `;
+            document.getElementById("results-summary").innerHTML = summary;
+          } else {
+            document.getElementById("results-summary").innerHTML = "";
+          }
+        })
+        .catch(() => {
+          document.getElementById('history-table').style.display = 'none';
+          document.getElementById('results-box').style.display = 'none';
+        });
+      });
+
+      // Export CSV
+      document.getElementById("export-csv-btn").addEventListener("click", async () => {
+        const startTime = document.getElementById("start-time").value;
+        const endTime = document.getElementById("end-time").value;
+        if (!startTime || !endTime) {
+          alert("Start and end time are required.");
+          return;
+        }
+        try {
+          const response = await fetch("/search-history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ start: startTime, end: endTime })
+          });
+          const data = await response.json();
+          if (!data.results || data.results.length === 0) {
+            alert("No results found.");
+            return;
+          }
+          const csv = "Timestamp,Price\n" + data.results.map(r => `${r[0]},${r[1]}`).join("\n");
+          // Download CSV
+          const blob = new Blob([csv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "btc_history.csv";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch {
+          alert("Error exporting CSV.");
+        }
+      });
+
+      // Copy Results
+      document.getElementById("copy-results-btn").addEventListener("click", () => {
+        const rows = document.querySelectorAll("#history-table tbody tr");
+        if (!rows.length) return;
+        let output = "Timestamp\tPrice\n";
+        rows.forEach(row => {
+          const cols = row.querySelectorAll("td");
+          const line = Array.from(cols).map(td => td.textContent.trim()).join("\t");
+          output += line + "\n";
+        });
+        navigator.clipboard.writeText(output).then(() => {
+          const toast = document.getElementById("copy-toast");
+          toast.textContent = "Copied to clipboard";
+          toast.classList.add("show");
+          setTimeout(() => {
+            toast.classList.remove("show");
+          }, 1500);
+        }).catch(() => {
+          alert("Copy to clipboard failed.");
+        });
+      });
+    });
+  </script>
+</body>
+</html>

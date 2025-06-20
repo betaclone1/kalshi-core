@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>rec.io - MONITOR</title>
+  <style>
+    body, input, button, table, th, td, pre, div {
+      font-family: Arial, sans-serif !important;
+    }
+    #live-dot,
+    #live-text {
+      color: green;
+    }
+    #connection-tooltip {
+      pointer-events: none;
+      position: absolute;
+    }
+    .price-up {
+      color: #00cc00;
+      transition: color 0.8s ease-in-out;
+    }
+
+    .price-down {
+      color: red;
+      transition: color 0.8s ease-in-out;
+    }
+    @keyframes pulseGreen {
+      0% { opacity: 1; }
+      50% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+    .pulsing-green {
+      animation: pulseGreen 2s infinite;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: #fff;
+      color: #000;
+      margin: 0;
+      padding: 0;
+    }
+    #live-indicator {
+      position: absolute;
+      top: 18px;
+      right: 30px;
+      font-size: 90%;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .value {
+      font-size: 1.4rem;
+      margin: 5px 0;
+      font-family: Arial, sans-serif;
+    }
+    .button {
+      background-color: #fff;
+      color: #000;
+      border: 1px solid #ccc;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      transition: background-color 0.2s ease;
+    }
+
+    .button:hover {
+      background-color: #eee;
+    }
+    #tab-buttons button {
+      color: #333;
+      border-top-left-radius: 6px;
+      border-top-right-radius: 6px;
+    }
+    #tab-buttons button.inactive {
+      color: #888;
+    }
+    #date-time-header {
+      padding-top: 10px;
+    }
+    #log-results {
+      background: #f8f8f8;
+      padding: 10px;
+      border: 1px solid #ccc;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      resize: vertical;
+      min-height: 100px;
+      height: 100px;
+      max-height: 700px;
+      max-width: 300px;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+    #copy-toast {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: #e6f4ea; /* light green bg */
+      color: #137333; /* Google-style green text */
+      border: 2px solid #137333;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-family: Arial, sans-serif;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 9999;
+    }
+    #copy-toast.show {
+      opacity: 1;
+    }
+
+    /* TTC background styling (from trade_monitor.html) */
+    .ttc {
+      color: white;
+      font-weight: bold;
+      padding: 0 12px;
+      border-radius: 6px;
+    }
+
+    .ttc-yellow {
+      background-color: #ffc107;
+      color: #fff;
+      border-radius: 6px;
+      padding: 0 10px;
+    }
+
+    .ttc-green {
+      background-color: #45d34a;
+      color: #fff;
+      border-radius: 6px;
+      padding: 0 10px;
+    }
+
+    .ttc-red {
+      background-color: #d2372b;
+      color: #fff;
+      border-radius: 6px;
+      padding: 0 10px;
+    }
+  </style>
+  <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+  <div style="padding: 20px 20px; font-family: Arial, sans-serif;">
+    <div><img src="images/rec_logo.png" alt="Rec Logo" style="height: 40px;"></div>
+  </div>
+  <div id="ttc-header" style="position: absolute; top: 30px; right: 190px; font-size: 2.1rem; font-weight: bold; z-index: 9999;">
+    <span id="ttc-main">--:--</span>
+  </div>
+  <div id="live-indicator">
+    <div style="display: inline-flex; align-items: center;">
+      <span id="live-dot" style="font-size: 0.65em; margin-right: 4px;">🟢</span>
+      <span id="live-text">LIVE</span>
+    </div>
+  </div>
+  <div id="connection-tooltip" style="display: none; background: white; border: 1px solid black; padding: 6px 10px; font-size: 0.75rem; font-weight: normal; border-radius: 6px; z-index: 100;">
+    <div style="display: flex; align-items: center; color: green; font-weight: bold;">
+      <span style="font-size: 1.2em; margin-right: 6px;">🟢</span> Coinbase WS
+    </div>
+    <div style="font-size: 0.75em; color: #555; margin-top: 6px;">Live timestamp: <span id="live-timestamp">Loading...</span></div>
+  </div>
+  <div id="date-time-header" style="font-size: 0.75rem; color: #333; position: absolute; top: 30px; right: 0px; text-align: right; line-height: 1.2; padding-right: 30px; height: 60px; font-weight: bold;">
+    <div id="date" style="margin-bottom: 4px;">—</div>
+    <div id="time">—</div>
+  </div>
+  <div id="tab-buttons" style="display: flex; border-bottom: 1px solid #bbb; margin-bottom: 20px; padding-left: 10px;">
+    <button onclick="switchTab('monitor')" style="padding: 6px 14px; font-weight: bold; border: none; background: #eee; font-size: 0.9rem; margin-right: 6px;" id="btn-monitor">Trade Monitor</button>
+    <button onclick="switchTab('log')" style="padding: 6px 14px; font-weight: bold; border: none; background: #ccc; font-size: 0.9rem; margin-right: 6px;" id="btn-log">History</button>
+    <button onclick="switchTab('settings')" style="padding: 6px 14px; font-weight: bold; border: none; background: #ccc; font-size: 0.9rem; margin-right: 6px;" id="btn-settings">Settings</button>
+  </div>
+  <div id="tab-container" style="margin-top: -10px;">
+    <div id="tab-monitor" style="width: 100%; height: 100%; border: none; padding: 0; margin: 0;">
+      <iframe id="monitor-iframe" style="width: 100%; height: 100vh; border: none;"></iframe>
+    </div>
+    <div id="tab-log" style="display: none; padding: 0;">
+      <iframe src="tabs/history.html" style="width: 100%; height: 100vh; border: none;" id="log-iframe"></iframe>
+    </div>
+    <div id="tab-settings" style="display: none; padding: 20px;">
+      <p>Settings panel coming soon.</p>
+    </div>
+  </div> <!-- Close tab-container -->
+
+  <script>
+    let latestCoreData = null;
+    let currentBase = null;
+
+    function formatTTC(seconds) {
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    async function fetchCore() {
+      const res = await fetch('/core');
+      const data = await res.json();
+      latestCoreData = data;
+
+      document.getElementById('date').textContent = `${data.date}`;
+      const timeObj = new Date(data.timestamp);
+      const timeStr = timeObj.toLocaleTimeString('en-US', {
+        timeZone: 'America/New_York',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      document.getElementById('time').textContent = `${timeStr} EST`;
+
+      const ttcEl = document.getElementById('ttc');
+      if (ttcEl) {
+        ttcEl.className = 'ttc';
+        if (data.ttc_seconds <= 180) {
+          ttcEl.classList.add('ttc-red');
+        } else if (data.ttc_seconds <= 300) {
+          ttcEl.classList.add('ttc-yellow');
+        } else if (data.ttc_seconds <= 720) {
+          ttcEl.classList.add('ttc-green');
+        } else if (data.ttc_seconds <= 900) {
+          ttcEl.classList.add('ttc-yellow');
+        }
+        ttcEl.textContent = `${formatTTC(data.ttc_seconds)}`;
+      }
+
+      document.getElementById('btc-price-value').textContent = `$${Number(data.btc_price).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+      const price = data.btc_price;
+      const roundedPrice = Math.floor(price / 250) * 250;
+
+      if (currentBase === null) {
+        currentBase = roundedPrice;
+      } else {
+        const topStrike = currentBase + 250 * 5;
+        const bottomStrike = currentBase - 250 * 5;
+        if (price > topStrike - 250 * 2) {
+          currentBase += 250;
+        } else if (price < bottomStrike + 250 * 2) {
+          currentBase -= 250;
+        }
+      }
+
+      if (data) {
+        // Update deltas: label and value are now separate elements
+        const deltaMap = {
+          '1m': data.delta_1m,
+          '2m': data.delta_2m,
+          '3m': data.delta_3m,
+          '4m': data.delta_4m,
+          '15m': data.delta_15m,
+          '30m': data.delta_30m
+        };
+        Object.entries(deltaMap).forEach(([interval, value]) => {
+          const el = document.getElementById(`delta-${interval}`);
+          if (el) {
+            el.textContent = (typeof value === 'number' ? (value >= 0 ? '+' : '') + value.toFixed(2) + '%' : '—');
+          }
+        });
+
+        // Calculate weighted momentum score
+        const weightedMomentum = (
+          data.delta_1m * 0.3 +
+          data.delta_2m * 0.25 +
+          data.delta_3m * 0.2 +
+          data.delta_4m * 0.15 +
+          data.delta_15m * 0.05 +
+          data.delta_30m * 0.05
+        ).toFixed(2);
+
+        // Update only the value element for momentum score
+        const momentumScoreEl = document.getElementById("momentum-score-value");
+        if (momentumScoreEl) {
+          const momentumDisplay = weightedMomentum >= 0 ? `+${weightedMomentum}%` : `${weightedMomentum}%`;
+          momentumScoreEl.textContent = momentumDisplay;
+        }
+
+        // VOLATILITY panel values with percent formatting
+        document.getElementById("vol30s").textContent = `${(data.vol_30s * 100).toFixed(2)}%`;
+        document.getElementById("vol1m").textContent = `${(data.vol_1m * 100).toFixed(2)}%`;
+        document.getElementById("vol5m").textContent = `${(data.vol_5m * 100).toFixed(2)}%`;
+
+        // If you have volatility1m, volatility5m, volatility15m display, update as percent
+        if (document.getElementById("volatility1m")) {
+          document.getElementById("volatility1m").textContent = `${(data.volatility1m * 100).toFixed(2)}%`;
+        }
+        if (document.getElementById("volatility5m")) {
+          document.getElementById("volatility5m").textContent = `${(data.volatility5m * 100).toFixed(2)}%`;
+        }
+        if (document.getElementById("volatility15m")) {
+          document.getElementById("volatility15m").textContent = `${(data.volatility15m * 100).toFixed(2)}%`;
+        }
+      }
+      buildStrikeTable(currentBase, price);
+      // Dump core data object to debug-output div
+      document.getElementById('debug-output').textContent = JSON.stringify(data, null, 2);
+    }
+
+    function getCheckboxState(strike) {
+      return JSON.parse(localStorage.getItem(`strike-${strike}`)) || { y: false, n: false };
+    }
+
+    function saveCheckboxState(strike, state) {
+      localStorage.setItem(`strike-${strike}`, JSON.stringify(state));
+    }
+
+    function clearAllCheckboxes() {
+      for (let i = -5; i <= 5; i++) {
+        const strike = currentBase + i * 250;
+        saveCheckboxState(strike, { y: false, n: false });
+      }
+      fetchCore(); // Refresh the table to reflect cleared states
+    }
+
+    function buildStrikeTable(base, centerPrice) {
+      const tbody = document.querySelector("#strike-table tbody");
+      tbody.innerHTML = "";
+
+      const headerRow = document.createElement("tr");
+      const headers = ["STRIKE", "BUFFER", "B/M", "Adj B/M", "RISK", "Y / N"];
+      headers.forEach((label) => {
+        const th = document.createElement("th");
+        th.textContent = label;
+        th.style.borderBottom = "1px solid #000";
+        // STRIKE column: wider padding and width
+        if (label === "STRIKE") {
+          th.style.padding = "4px 10px";
+          th.style.width = "90px";
+        } else if (label === "BUFFER" || label === "B/M" || label === "Adj B/M") {
+          th.style.padding = "4px 8px";
+          th.style.width = "75px";
+        } else {
+          th.style.padding = "4px 8px";
+        }
+        if (label === "Y / N") {
+          th.style.textAlign = "center";
+        } else {
+          th.style.textAlign = "right";
+        }
+        th.style.fontSize = "75%";
+        th.style.fontWeight = "bold";
+        headerRow.appendChild(th);
+      });
+      tbody.appendChild(headerRow);
+
+      for (let i = -5; i <= 5; i++) {
+        const strike = base + i * 250;
+        const checkboxState = getCheckboxState(strike);
+        const buffer = strike - centerPrice;
+        // Calculate B/M and Adj B/M per Sheets logic:
+        const ttcSeconds = latestCoreData?.ttc_seconds || 1;
+        const ttcMinutes = ttcSeconds / 60;
+        const bpm = Math.abs(buffer) / ttcMinutes;
+        const adjBpm = bpm * Math.sqrt(ttcMinutes / 15);
+
+        let risk = 1;
+        if (adjBpm >= 80) risk = 10;
+        else if (adjBpm >= 65) risk = 9;
+        else if (adjBpm >= 50) risk = 8;
+        else if (adjBpm >= 40) risk = 7;
+        else if (adjBpm >= 35) risk = 6;
+        else if (adjBpm >= 30) risk = 5;
+        else if (adjBpm >= 25) risk = 4;
+        else if (adjBpm >= 15) risk = 3;
+        else if (adjBpm >= 10) risk = 2;
+
+        const row = document.createElement("tr");
+
+        // Highlight the active strike row with a thicker border only on main cells
+        const lowerBound = strike;
+        const upperBound = strike + 249.9999;
+        const isActiveRow = centerPrice >= lowerBound && centerPrice <= upperBound;
+
+
+        const strikeCell = document.createElement("td");
+        strikeCell.textContent = `$${strike.toLocaleString()}`;
+        strikeCell.style.border = "1px solid #888";
+        strikeCell.style.padding = "4px 10px";
+        strikeCell.style.textAlign = "right";
+        strikeCell.style.fontWeight = "bold";
+
+        const bufferCell = document.createElement("td");
+        bufferCell.textContent = `${Math.abs(Math.round(buffer)).toLocaleString()}`;
+        bufferCell.style.border = "1px solid #888";
+        bufferCell.style.padding = "4px 8px";
+        bufferCell.style.textAlign = "right";
+
+        const bpmCell = document.createElement("td");
+        bpmCell.textContent = `${Math.round(bpm).toLocaleString()}`;
+        bpmCell.style.border = "1px solid #888";
+        bpmCell.style.padding = "4px 8px";
+        bpmCell.style.textAlign = "right";
+
+        const adjCell = document.createElement("td");
+        adjCell.textContent = `${adjBpm.toFixed(1)}`;
+        adjCell.style.border = "1px solid #888";
+        adjCell.style.padding = "4px 8px";
+        adjCell.style.textAlign = "right";
+        adjCell.style.fontWeight = "bold";
+
+        const riskCell = document.createElement("td");
+        riskCell.textContent = risk.toString();
+        riskCell.style.border = "1px solid #888";
+        riskCell.style.padding = "4px 8px";
+        riskCell.style.textAlign = "right";
+
+        const ynCell = document.createElement("td");
+        ynCell.style.border = "1px solid #888";
+        ynCell.style.padding = "4px 8px";
+        ynCell.style.textAlign = "center";
+
+        const checkboxY = document.createElement("input");
+        checkboxY.type = "checkbox";
+        checkboxY.style.marginRight = "6px";
+        const checkboxN = document.createElement("input");
+        checkboxN.type = "checkbox";
+        // Apply persisted state
+        checkboxY.checked = checkboxState.y;
+        checkboxN.checked = checkboxState.n;
+        // Add event listeners to persist state
+        checkboxY.addEventListener("change", () => {
+          saveCheckboxState(strike, { y: checkboxY.checked, n: checkboxN.checked });
+        });
+        checkboxN.addEventListener("change", () => {
+          saveCheckboxState(strike, { y: checkboxY.checked, n: checkboxN.checked });
+        });
+        ynCell.appendChild(checkboxY);
+        ynCell.appendChild(checkboxN);
+
+        if (isActiveRow) {
+          // Apply thick top and bottom borders across the row
+          strikeCell.style.borderTop = "3px solid #000";
+          bufferCell.style.borderTop = "3px solid #000";
+          bpmCell.style.borderTop = "3px solid #000";
+          adjCell.style.borderTop = "3px solid #000";
+          riskCell.style.borderTop = "3px solid #000";
+          ynCell.style.borderTop = "3px solid #000";
+
+          strikeCell.style.borderBottom = "3px solid #000";
+          bufferCell.style.borderBottom = "3px solid #000";
+          bpmCell.style.borderBottom = "3px solid #000";
+          adjCell.style.borderBottom = "3px solid #000";
+          riskCell.style.borderBottom = "3px solid #000";
+          ynCell.style.borderBottom = "3px solid #000";
+
+          // Left border for first cell, right border for last cell
+          strikeCell.style.borderLeft = "3px solid #000";
+          ynCell.style.borderRight = "3px solid #000";
+        }
+
+        row.appendChild(strikeCell);
+        row.appendChild(bufferCell);
+        row.appendChild(bpmCell);
+        row.appendChild(adjCell);
+        row.appendChild(riskCell);
+        row.appendChild(ynCell);
+
+        // Updated RISK key background color logic
+        if (risk <= 3) {
+          strikeCell.style.backgroundColor =
+          bufferCell.style.backgroundColor =
+          bpmCell.style.backgroundColor =
+          adjCell.style.backgroundColor =
+          riskCell.style.backgroundColor =
+          ynCell.style.backgroundColor = '#f5c6c6'; // Red–pink for high risk (Risk 1–3)
+        } else if (risk === 4) {
+          strikeCell.style.backgroundColor =
+          bufferCell.style.backgroundColor =
+          bpmCell.style.backgroundColor =
+          adjCell.style.backgroundColor =
+          riskCell.style.backgroundColor =
+          ynCell.style.backgroundColor = '#fff5cc'; // Yellowish for caution (Risk 4)
+        } else if (risk === 5 || risk === 6) {
+          strikeCell.style.backgroundColor =
+          bufferCell.style.backgroundColor =
+          bpmCell.style.backgroundColor =
+          adjCell.style.backgroundColor =
+          riskCell.style.backgroundColor =
+          ynCell.style.backgroundColor = '#e3fbe3'; // Light green for moderate safety (Risk 5–6)
+        } else if (risk >= 7) {
+          strikeCell.style.backgroundColor =
+          bufferCell.style.backgroundColor =
+          bpmCell.style.backgroundColor =
+          adjCell.style.backgroundColor =
+          riskCell.style.backgroundColor =
+          ynCell.style.backgroundColor = '#c4f5c4'; // Brighter green for high safety (Risk 7–10)
+        }
+
+        tbody.appendChild(row);
+      }
+
+      const clearRow = document.createElement("tr");
+      for (let i = 0; i < 5; i++) {
+        const emptyCell = document.createElement("td");
+        clearRow.appendChild(emptyCell);
+      }
+      const clearCell = document.createElement("td");
+      clearCell.style.textAlign = "center";
+      clearCell.style.paddingTop = "6px";
+
+      const clearButton = document.createElement("button");
+      clearButton.textContent = "CLEAR";
+      clearButton.className = "button";
+      clearButton.style.transform = "scale(0.75)";
+      clearButton.style.transformOrigin = "center";
+      clearButton.onclick = clearAllCheckboxes;
+      clearButton.style.cursor = "pointer";
+
+      clearCell.appendChild(clearButton);
+      clearRow.appendChild(clearCell);
+      tbody.appendChild(clearRow);
+    }
+
+    setInterval(fetchCore, 1000);
+    fetchCore();
+
+    // LIVE indicator logic based on staleness (over 10s = OFFLINE)
+    function updateLiveStatus() {
+      const indicatorText = document.getElementById("live-text");
+      const indicatorDot = document.getElementById("live-dot");
+      const ts = latestCoreData?.timestamp;
+
+      if (!ts) {
+        indicatorText.textContent = "OFFLINE";
+        indicatorDot.textContent = "🔴";
+        indicatorDot.classList.remove("pulsing-green");
+        return;
+      }
+
+      const age = (Date.now() - new Date(ts).getTime()) / 1000;
+      if (age > 10) {
+        indicatorText.textContent = "OFFLINE";
+        indicatorDot.textContent = "🔴";
+        indicatorDot.classList.remove("pulsing-green");
+      } else {
+        indicatorText.textContent = "LIVE";
+        indicatorDot.textContent = "🟢";
+        indicatorDot.classList.add("pulsing-green");
+      }
+    }
+    setInterval(updateLiveStatus, 2000);
+
+    function switchTab(tab) {
+      const monitorTab = document.getElementById("tab-monitor");
+      const logTab = document.getElementById("tab-log");
+      const settingsTab = document.getElementById("tab-settings");
+
+      const btnMonitor = document.getElementById("btn-monitor");
+      const btnLog = document.getElementById("btn-log");
+      const btnSettings = document.getElementById("btn-settings");
+
+      monitorTab.style.display = (tab === 'monitor') ? 'block' : 'none';
+      logTab.style.display = (tab === 'log') ? 'block' : 'none';
+      settingsTab.style.display = (tab === 'settings') ? 'block' : 'none';
+
+      btnMonitor.style.background = (tab === 'monitor') ? '#eee' : '#ccc';
+      btnMonitor.className = (tab === 'monitor') ? '' : 'inactive';
+
+      btnLog.style.background = (tab === 'log') ? '#eee' : '#ccc';
+      btnLog.className = (tab === 'log') ? '' : 'inactive';
+
+      btnSettings.style.background = (tab === 'settings') ? '#eee' : '#ccc';
+      btnSettings.className = (tab === 'settings') ? '' : 'inactive';
+
+      if (tab === 'log') {
+        fetchLog();
+      }
+    }
+
+    // Ensure correct initial tab styling on load
+    switchTab('monitor');
+
+    async function fetchLog() {
+      const startTime = document.getElementById("start-time").value;
+      const endTime = document.getElementById("end-time").value;
+
+      if (!startTime || !endTime) {
+        // document.getElementById('log-results').textContent = 'Select search parameters.';
+        return;
+      }
+
+      console.log("Search clicked with range:", startTime, "to", endTime);
+
+      try {
+        const res = await fetch(`/history?start=${encodeURIComponent(startTime)}&end=${encodeURIComponent(endTime)}`);
+        const data = await res.json();
+        // const logText = data.map(item => `${item.timestamp} | $${Number(item.price).toFixed(2)}`).join('\n');
+        // document.getElementById('log-results').textContent = logText || 'No results found for the given range.';
+      } catch (err) {
+        console.error('Error fetching history data:', err);
+        // if (typeof hasSearched !== 'undefined' && hasSearched) {
+        //   document.getElementById('log-results').textContent = 'Error fetching log data.';
+        // }
+      }
+    }
+
+    // Utility function: searchLog
+    // (Replaced by event listener below)
+    // --- Live timestamp fetch for popup ---
+    async function fetchLiveTimestamp() {
+      try {
+        const response = await fetch('/last-price');
+        const data = await response.json();
+        document.getElementById('live-timestamp').innerText = data.timestamp || "Unavailable";
+      } catch (err) {
+        document.getElementById('live-timestamp').innerText = "Unavailable";
+      }
+    }
+
+    // Attach fetchLiveTimestamp to popup hover
+    document.getElementById('live-indicator').addEventListener('mouseenter', fetchLiveTimestamp);
+
+    // Attach searchLog logic to #search-btn
+    document.addEventListener("DOMContentLoaded", () => {
+      let hasSearched = false;
+
+      const nowUTC = new Date();
+      const nowEST = new Date(nowUTC.toLocaleString("en-US", { timeZone: "America/New_York" }));
+      const oneHourAgoEST = new Date(nowEST.getTime() - 60 * 60 * 1000);
+
+      // The following function formats a Date object for an <input type="datetime-local"> field.
+      // Note: datetime-local fields always use 24-hour format, so no special handling is needed for AM/PM or 12/24h.
+      // If you see 12-hour format or AM/PM in your browser, that's a browser/system display setting, not a code issue.
+      // This function outputs the correct ISO string for datetime-local input.
+      const toDatetimeLocal = dt => {
+        const pad = n => String(n).padStart(2, '0');
+        return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+      };
+
+      document.getElementById("start-time").value = toDatetimeLocal(oneHourAgoEST);
+      document.getElementById("end-time").value = toDatetimeLocal(nowEST);
+
+      const searchBtn = document.getElementById("search-btn");
+      if (searchBtn) {
+        searchBtn.addEventListener("click", () => {
+          const startTime = document.getElementById("start-time").value;
+          const endTime = document.getElementById("end-time").value;
+          if (!startTime || !endTime) {
+            // document.getElementById('log-results').textContent = 'Select search parameters.';
+            // document.getElementById('log-results').style.display = '';
+            document.getElementById('log-table').style.display = 'none';
+            document.getElementById('results-box').style.display = 'none';
+            return;
+          }
+
+          hasSearched = true;
+          fetch("/search-history", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ start: startTime, end: endTime })
+          })
+          .then(response => response.json())
+          .then(data => {
+            const table = document.getElementById("log-table");
+            const tbody = table.querySelector("tbody");
+            tbody.innerHTML = "";
+            if (!Array.isArray(data.results) || data.results.length === 0) {
+              // document.getElementById('log-results').textContent = 'No results found for the given range.';
+              // document.getElementById('log-results').style.display = '';
+              table.style.display = 'none';
+              document.getElementById('results-box').style.display = 'block';
+              document.getElementById('results-summary').innerHTML = "";
+              return;
+            }
+            data.results.forEach(item => {
+              const row = document.createElement("tr");
+              const ts = document.createElement("td");
+              ts.textContent = item[0];
+              ts.style.paddingRight = "10px";
+              ts.style.border = "1px solid #ccc";
+              const price = document.createElement("td");
+              price.textContent = `$${Number(item[1]).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+              price.style.textAlign = "left";
+              price.style.border = "1px solid #ccc";
+              row.appendChild(ts);
+              row.appendChild(price);
+              tbody.appendChild(row);
+            });
+            table.style.display = "table";
+            // document.getElementById('log-results').style.display = "none";
+            document.getElementById('results-box').style.display = 'block';
+            // ---- Insert summary stats calculation here ----
+            const prices = Array.from(document.querySelectorAll("#log-table tbody tr td:last-child"))
+              .map(td => parseFloat(td.textContent.replace(/[^0-9.-]+/g, "")))
+              .filter(n => !isNaN(n));
+
+            if (prices.length > 1) {
+              const max = Math.max(...prices);
+              const min = Math.min(...prices);
+              const totalMove = max - min;
+              const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+              const variance = prices.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / prices.length;
+              const volatility = Math.sqrt(variance);
+              const percentMove = ((totalMove / min) * 100).toFixed(2);
+              const range = max - min;
+              const rangePct = ((range / min) * 100).toFixed(2);
+
+              const summary = `
+                <table style="font-size: 0.9rem; font-family: Arial, sans-serif;">
+                  <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Total Move:</td><td style="text-align: left;">$${totalMove.toLocaleString()}</td></tr>
+                  <tr><td></td><td style="text-align: left;">${percentMove}%</td></tr>
+                  <tr><td colspan="2" style="height: 8px;"></td></tr>
+                  <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Max:</td><td style="text-align: left;">$${max.toLocaleString()}</td></tr>
+                  <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Min:</td><td style="text-align: left;">$${min.toLocaleString()}</td></tr>
+                  <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Range:</td><td style="text-align: left;">$${range.toLocaleString()}</td></tr>
+                  <tr><td></td><td style="text-align: left;">${rangePct}%</td></tr>
+                  <tr><td colspan="2" style="height: 8px;"></td></tr>
+                  <tr><td style="text-align: right; padding-right: 6px; font-weight: bold;">Volatility:</td><td style="text-align: left;">$${volatility.toFixed(2)}</td></tr>
+                </table>
+              `;
+              document.getElementById("results-summary").innerHTML = summary;
+            } else {
+              document.getElementById("results-summary").innerHTML = "";
+            }
+            // ---- End summary stats ----
+          })
+          .catch(error => {
+            console.error('Error fetching history data:', error);
+            // document.getElementById('log-results').textContent = 'Error fetching log data.';
+            // document.getElementById('log-results').style.display = '';
+            document.getElementById('log-table').style.display = 'none';
+            document.getElementById('results-box').style.display = 'none';
+          });
+        });
+      }
+
+      // Export CSV logic
+      const exportBtn = document.getElementById("export-csv-btn");
+      if (exportBtn) {
+        exportBtn.addEventListener("click", async () => {
+          const startTime = document.getElementById("start-time").value;
+          const endTime = document.getElementById("end-time").value;
+          if (!startTime || !endTime) {
+            alert("Start and end time are required.");
+            return;
+          }
+
+          try {
+            const response = await fetch("/search-history", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ start: startTime, end: endTime })
+            });
+            const data = await response.json();
+            if (!data.results || data.results.length === 0) {
+              alert("No results found.");
+              return;
+            }
+            const csv = "Timestamp,Price\n" + data.results.map(r => `${r[0]},${r[1]}`).join("\n");
+
+            const fileHandle = await window.showSaveFilePicker({
+              suggestedName: "btc_history.csv",
+              types: [{
+                description: 'CSV Files',
+                accept: {'text/csv': ['.csv']},
+              }]
+            });
+
+            const writable = await fileHandle.createWritable();
+            await writable.write(csv);
+            await writable.close();
+          } catch (error) {
+            console.error('Error exporting CSV:', error);
+            alert("Error exporting CSV.");
+          }
+        });
+      }
+    // Copy Results logic
+    const copyBtn = document.getElementById("copy-results-btn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const rows = document.querySelectorAll("#log-table tbody tr");
+        if (!rows.length) return;
+        let output = "Timestamp\tPrice\n";
+        rows.forEach(row => {
+          const cols = row.querySelectorAll("td");
+          const line = Array.from(cols).map(td => td.textContent.trim()).join("\t");
+          output += line + "\n";
+        });
+        navigator.clipboard.writeText(output).then(() => {
+          const toast = document.getElementById("copy-toast");
+          toast.textContent = "Copied to clipboard";
+          toast.classList.add("show");
+          setTimeout(() => {
+            toast.classList.remove("show");
+          }, 1500);
+        }).catch(err => {
+          console.error("Copy failed:", err);
+          alert("Copy to clipboard failed.");
+        });
+      });
+    }
+    });
+</script>
+<script>
+  // Standalone TTC clock: counts down to next top of hour in mm:ss format
+  function updateSimpleTTC() {
+    const now = new Date();
+    const nextHour = new Date(now);
+    nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+    const seconds = Math.floor((nextHour - now) / 1000);
+
+    const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+    const s = String(seconds % 60).padStart(2, '0');
+    const ttcSpan = document.getElementById("ttc-main");
+
+    if (ttcSpan) {
+      ttcSpan.textContent = `${m}:${s}`;
+
+      // Reset styles
+      ttcSpan.style.backgroundColor = '';
+      ttcSpan.style.color = '';
+      ttcSpan.style.borderRadius = '';
+      ttcSpan.style.padding = '';
+
+      if (seconds >= 0 && seconds <= 180) {
+        // Red background (0:00 to 3:00)
+        ttcSpan.style.backgroundColor = '#d2372b';
+        ttcSpan.style.color = '#fff';
+        ttcSpan.style.borderRadius = '6px';
+        ttcSpan.style.padding = '0 10px';
+      } else if (seconds > 180 && seconds <= 300) {
+        // Yellow background (3:00 to 5:00)
+        ttcSpan.style.backgroundColor = '#ffc107';
+        ttcSpan.style.color = '#fff';
+        ttcSpan.style.borderRadius = '6px';
+        ttcSpan.style.padding = '0 10px';
+      } else if (seconds > 300 && seconds <= 720) {
+        // Green background (5:00 to 12:00)
+        ttcSpan.style.backgroundColor = '#45d34a';
+        ttcSpan.style.color = '#fff';
+        ttcSpan.style.borderRadius = '6px';
+        ttcSpan.style.padding = '0 10px';
+      } else if (seconds > 720 && seconds <= 900) {
+        // Yellow background (12:00 to 15:00)
+        ttcSpan.style.backgroundColor = '#ffc107';
+        ttcSpan.style.color = '#fff';
+        ttcSpan.style.borderRadius = '6px';
+        ttcSpan.style.padding = '0 10px';
+      }
+    }
+  }
+  setInterval(updateSimpleTTC, 1000);
+  updateSimpleTTC();
+</script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const indicator = document.getElementById("live-indicator");
+      const tooltip = document.getElementById("connection-tooltip");
+
+      indicator.addEventListener("mouseenter", () => {
+        tooltip.style.display = "block";
+
+        function moveTooltip(e) {
+          tooltip.style.left = `${e.pageX - tooltip.offsetWidth - 12}px`;
+          tooltip.style.top = `${e.pageY}px`;
+        }
+
+        document.addEventListener("mousemove", moveTooltip);
+
+        indicator.addEventListener("mouseleave", () => {
+          tooltip.style.display = "none";
+          document.removeEventListener("mousemove", moveTooltip);
+        }, { once: true });
+      });
+    });
+  </script>
+  <script>
+  // Reduce top margin of imported tab pages (trade_monitor.html, history.html)
+  function reduceIframeTopMargin(iframeId, selector, originalMargin = 20, newMargin = 10) {
+    const iframe = document.getElementById(iframeId);
+    if (!iframe) return;
+    iframe.addEventListener('load', () => {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        const el = doc.querySelector(selector);
+        if (el) {
+          // Find margin-top in style attribute or set it directly
+          const currentMargin = parseInt(el.style.marginTop) || originalMargin;
+          el.style.marginTop = (currentMargin / 2) + 'px';
+        }
+      } catch (e) {
+        // Cross-origin protection: ignore if not same-origin
+      }
+    });
+  }
+
+  // For trade_monitor.html
+  reduceIframeTopMargin('monitor-iframe', '#tab-container', 10, 5);
+
+  // For history.html (or history_new.html if that's the file)
+  reduceIframeTopMargin('log-iframe', 'div[style*="padding: 20px"]', 20, 10);
+  </script>
+</script>
+<script>
+  // --- LIVE indicator and tooltip update for BTC & Kalshi feeds ---
+  async function fetchFeedStatus() {
+    try {
+      const response = await fetch('/feed-status');
+      const data = await response.json();
+
+      const feeds = data.feeds;
+
+      // Debugging: show feeds object
+      console.log("Feed status object:", feeds);
+
+      for (const [name, info] of Object.entries(feeds)) {
+        console.log(`Feed: ${name}, Raw timestamp: ${info.timestamp}`);
+        const parsed = Date.parse(info.timestamp);
+        console.log(`Feed: ${name}, Parsed timestamp: ${parsed}, Now: ${Date.now()}, Age: ${(Date.now() - parsed) / 1000}`);
+      }
+
+      const allAlive = Object.values(feeds).every(f => f.alive);
+
+      const indicatorText = document.getElementById("live-text");
+      const indicatorDot = document.getElementById("live-dot");
+
+      if (allAlive) {
+        indicatorText.textContent = "LIVE";
+        indicatorDot.textContent = "🟢";
+        indicatorText.style.color = "green";
+        indicatorDot.classList.add("pulsing-green");
+      } else {
+        indicatorText.textContent = "OFFLINE";
+        indicatorDot.textContent = "🔴";
+        indicatorText.style.color = "red";
+        indicatorDot.classList.remove("pulsing-green");
+      }
+
+      const tooltip = document.getElementById("connection-tooltip");
+      tooltip.innerHTML = '';
+
+      for (const [name, info] of Object.entries(feeds)) {
+        const statusLine = document.createElement("div");
+        statusLine.style.display = "flex";
+        statusLine.style.alignItems = "center";
+        statusLine.style.fontWeight = "bold";
+        statusLine.style.color = info.alive ? "green" : "gray";
+
+        const icon = document.createElement("span");
+        icon.style.fontSize = "1.2em";
+        icon.style.marginRight = "6px";
+        icon.textContent = info.alive ? "🟢" : "🔴";
+
+        const label = document.createElement("span");
+        label.textContent = `${name} Feed`;
+        statusLine.appendChild(icon);
+        statusLine.appendChild(label);
+
+        const timeLine = document.createElement("div");
+        timeLine.style.fontSize = "0.75em";
+        timeLine.style.color = "#555";
+        timeLine.style.marginTop = "4px";
+        timeLine.textContent = `Last: ${info.timestamp}`;
+
+        tooltip.appendChild(statusLine);
+        tooltip.appendChild(timeLine);
+      }
+    } catch (err) {
+      console.error("Feed status fetch failed:", err);
+    }
+  }
+  setInterval(fetchFeedStatus, 2000);
+  fetchFeedStatus();
+</script>
+</body>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const ts = Date.now();
+    const monitorIframe = document.getElementById("monitor-iframe");
+    if (monitorIframe) {
+      monitorIframe.src = `tabs/trade_monitor.html?ts=${ts}`;
+    }
+  });
+</script>
+<div id="copy-toast">Copied to clipboard!</div>
+</html>
