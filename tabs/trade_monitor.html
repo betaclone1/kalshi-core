@@ -202,21 +202,24 @@
 
     .price-box {
       display: inline-block;
-      padding: 4px 8px;
+      padding: 5px 9.6px;
       border-radius: 8px;
-      background-color: #e0e0e0;
+      background-color: transparent;
       font-weight: bold;
-      min-width: 40px;
+      min-width: 48px;
       user-select: none;
+      border: 1px solid black;
+      transition: background-color 0.2s ease;
+      font-size: 0.9375rem;
     }
 
     .price-box:hover {
-      background-color: #c0c0c0;
+      background-color: rgba(0, 0, 0, 0.1);
       cursor: pointer;
     }
 
     .price-box.disabled {
-      opacity: 0.2;
+      opacity: 0.1;
       pointer-events: none;
     }
 
@@ -363,16 +366,6 @@
           <!-- Bottom right: Kalshi test trade table -->
           <div id="status-panel" style="width: 500px; display: flex; flex-direction: column; align-items: flex-end; margin: 0; padding: 0;">
             <div style="margin-top: 0; width: 500px;">
-              <table id="kalshi-api-table" style="border-collapse: collapse; width: 100%; font-size: 0.75rem;">
-                <thead>
-                  <tr>
-                    <th>Strike</th>
-                    <th>Yes Ask</th>
-                    <th>No Ask</th>
-                  </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
               <div style="margin-top: 10px;">
                 <label for="position-size" style="font-weight: bold; display: block; font-size: 0.8rem;">Position Size:</label>
                 <input type="number" id="position-size" min="1" value="100" style="width: 50px; padding: 4px; font-size: 0.75rem; text-align: right;">
@@ -454,6 +447,7 @@
   <script>
     let latestCoreData = null;
     let currentBase = null;
+    let latestKalshiMarkets = [];
 
     function formatTTC(seconds) {
       const m = String(Math.floor(seconds / 60)).padStart(2, '0');
@@ -585,8 +579,9 @@
       const tbody = document.querySelector("#strike-table tbody");
       tbody.innerHTML = "";
 
+      // Add "YES" and "NO" to the headers array
       const headerRow = document.createElement("tr");
-      const headers = ["STRIKE", "BUFFER", "B/M", "Adj B/M", "RISK", "Y / N"];
+      const headers = ["STRIKE", "BUFFER", "B/M", "Adj B/M", "RISK", "YES", "NO"];
       headers.forEach((label) => {
         const th = document.createElement("th");
         th.textContent = label;
@@ -601,7 +596,8 @@
         } else {
           th.style.padding = "4px 8px";
         }
-        if (label === "Y / N") {
+        // Center YES/NO headers, right-align others
+        if (label === "YES" || label === "NO") {
           th.style.textAlign = "center";
         } else {
           th.style.textAlign = "right";
@@ -614,7 +610,6 @@
 
       for (let i = -5; i <= 5; i++) {
         const strike = base + i * 250;
-        const checkboxState = getCheckboxState(strike);
         const buffer = strike - centerPrice;
         // Calculate B/M and Adj B/M per Sheets logic:
         const ttcSeconds = latestCoreData?.ttc_seconds || 1;
@@ -639,7 +634,6 @@
         const lowerBound = strike;
         const upperBound = strike + 249.9999;
         const isActiveRow = centerPrice >= lowerBound && centerPrice <= upperBound;
-
 
         const strikeCell = document.createElement("td");
         strikeCell.textContent = `$${strike.toLocaleString()}`;
@@ -673,28 +667,69 @@
         riskCell.style.padding = "4px 8px";
         riskCell.style.textAlign = "right";
 
-        const ynCell = document.createElement("td");
-        ynCell.style.border = "1px solid #888";
-        ynCell.style.padding = "4px 8px";
-        ynCell.style.textAlign = "center";
+        // New YES and NO cells
+        const yesCell = document.createElement("td");
+        yesCell.style.border = "1px solid #888";
+        yesCell.style.padding = "4px 8px";
+        yesCell.style.textAlign = "center";
+        yesCell.style.fontSize = "0.75rem";
 
-        const checkboxY = document.createElement("input");
-        checkboxY.type = "checkbox";
-        checkboxY.style.marginRight = "6px";
-        const checkboxN = document.createElement("input");
-        checkboxN.type = "checkbox";
-        // Apply persisted state
-        checkboxY.checked = checkboxState.y;
-        checkboxN.checked = checkboxState.n;
-        // Add event listeners to persist state
-        checkboxY.addEventListener("change", () => {
-          saveCheckboxState(strike, { y: checkboxY.checked, n: checkboxN.checked });
-        });
-        checkboxN.addEventListener("change", () => {
-          saveCheckboxState(strike, { y: checkboxY.checked, n: checkboxN.checked });
-        });
-        ynCell.appendChild(checkboxY);
-        ynCell.appendChild(checkboxN);
+        const noCell = document.createElement("td");
+        noCell.style.border = "1px solid #888";
+        noCell.style.padding = "4px 8px";
+        noCell.style.textAlign = "center";
+        noCell.style.fontSize = "0.75rem";
+
+        // --- KALSHI MARKET BUTTONS (test trade) ---
+        // Find matching market for this strike
+        const matchingMarket = latestKalshiMarkets.find(m => Math.round(m.floor_strike) === strike);
+        const yesSpan = document.createElement('span');
+        const noSpan = document.createElement('span');
+        let yesAsk = (matchingMarket && typeof matchingMarket.yes_ask === "number") ? Math.round(matchingMarket.yes_ask) : 0;
+        let noAsk = (matchingMarket && typeof matchingMarket.no_ask === "number") ? Math.round(matchingMarket.no_ask) : 0;
+        let volume = (matchingMarket && typeof matchingMarket.volume === "number") ? matchingMarket.volume : 0;
+        // New rules:
+        // - If volume < 50, both disabled.
+        // - Else, enable only the button with the higher ask price.
+        // - Any button with ask price < 40 is always disabled.
+        if (volume < 50) {
+          yesSpan.className = 'price-box disabled';
+          noSpan.className = 'price-box disabled';
+          yesSpan.textContent = yesAsk > 0 ? yesAsk : '0';
+          noSpan.textContent = noAsk > 0 ? noAsk : '0';
+        } else {
+          // If ask < 40, always disabled
+          if (yesAsk < 40) {
+            yesSpan.className = 'price-box disabled';
+            yesSpan.textContent = yesAsk > 0 ? yesAsk : '0';
+          } else if (yesAsk > noAsk) {
+            yesSpan.className = 'price-box';
+            yesSpan.textContent = yesAsk;
+            yesSpan.style.cursor = "pointer";
+            yesSpan.onclick = function() {
+              showPopup(`$${strike.toLocaleString()}`, "Yes", yesAsk);
+            };
+          } else {
+            yesSpan.className = 'price-box disabled';
+            yesSpan.textContent = yesAsk > 0 ? yesAsk : '0';
+          }
+          if (noAsk < 40) {
+            noSpan.className = 'price-box disabled';
+            noSpan.textContent = noAsk > 0 ? noAsk : '0';
+          } else if (noAsk > yesAsk) {
+            noSpan.className = 'price-box';
+            noSpan.textContent = noAsk;
+            noSpan.style.cursor = "pointer";
+            noSpan.onclick = function() {
+              showPopup(`$${strike.toLocaleString()}`, "No", noAsk);
+            };
+          } else {
+            noSpan.className = 'price-box disabled';
+            noSpan.textContent = noAsk > 0 ? noAsk : '0';
+          }
+        }
+        yesCell.appendChild(yesSpan);
+        noCell.appendChild(noSpan);
 
         if (isActiveRow) {
           // Apply thick top and bottom borders across the row
@@ -703,18 +738,41 @@
           bpmCell.style.borderTop = "3px solid #000";
           adjCell.style.borderTop = "3px solid #000";
           riskCell.style.borderTop = "3px solid #000";
-          ynCell.style.borderTop = "3px solid #000";
+          yesCell.style.borderTop = "3px solid #000";
+          noCell.style.borderTop = "3px solid #000";
 
           strikeCell.style.borderBottom = "3px solid #000";
           bufferCell.style.borderBottom = "3px solid #000";
           bpmCell.style.borderBottom = "3px solid #000";
           adjCell.style.borderBottom = "3px solid #000";
           riskCell.style.borderBottom = "3px solid #000";
-          ynCell.style.borderBottom = "3px solid #000";
+          yesCell.style.borderBottom = "3px solid #000";
+          noCell.style.borderBottom = "3px solid #000";
 
           // Left border for first cell, right border for last cell
           strikeCell.style.borderLeft = "3px solid #000";
-          ynCell.style.borderRight = "3px solid #000";
+          noCell.style.borderRight = "3px solid #000";
+        }
+
+        // Updated RISK key background color logic, include YES and NO cells
+        let bgColor = "";
+        if (risk <= 3) {
+          bgColor = '#f5c6c6'; // Red–pink for high risk (Risk 1–3)
+        } else if (risk === 4) {
+          bgColor = '#fff5cc'; // Yellowish for caution (Risk 4)
+        } else if (risk === 5 || risk === 6) {
+          bgColor = '#e3fbe3'; // Light green for moderate safety (Risk 5–6)
+        } else if (risk >= 7) {
+          bgColor = '#c4f5c4'; // Brighter green for high safety (Risk 7–10)
+        }
+        if (bgColor) {
+          strikeCell.style.backgroundColor =
+          bufferCell.style.backgroundColor =
+          bpmCell.style.backgroundColor =
+          adjCell.style.backgroundColor =
+          riskCell.style.backgroundColor =
+          yesCell.style.backgroundColor =
+          noCell.style.backgroundColor = bgColor;
         }
 
         row.appendChild(strikeCell);
@@ -722,61 +780,18 @@
         row.appendChild(bpmCell);
         row.appendChild(adjCell);
         row.appendChild(riskCell);
-        row.appendChild(ynCell);
-
-        // Updated RISK key background color logic
-        if (risk <= 3) {
-          strikeCell.style.backgroundColor =
-          bufferCell.style.backgroundColor =
-          bpmCell.style.backgroundColor =
-          adjCell.style.backgroundColor =
-          riskCell.style.backgroundColor =
-          ynCell.style.backgroundColor = '#f5c6c6'; // Red–pink for high risk (Risk 1–3)
-        } else if (risk === 4) {
-          strikeCell.style.backgroundColor =
-          bufferCell.style.backgroundColor =
-          bpmCell.style.backgroundColor =
-          adjCell.style.backgroundColor =
-          riskCell.style.backgroundColor =
-          ynCell.style.backgroundColor = '#fff5cc'; // Yellowish for caution (Risk 4)
-        } else if (risk === 5 || risk === 6) {
-          strikeCell.style.backgroundColor =
-          bufferCell.style.backgroundColor =
-          bpmCell.style.backgroundColor =
-          adjCell.style.backgroundColor =
-          riskCell.style.backgroundColor =
-          ynCell.style.backgroundColor = '#e3fbe3'; // Light green for moderate safety (Risk 5–6)
-        } else if (risk >= 7) {
-          strikeCell.style.backgroundColor =
-          bufferCell.style.backgroundColor =
-          bpmCell.style.backgroundColor =
-          adjCell.style.backgroundColor =
-          riskCell.style.backgroundColor =
-          ynCell.style.backgroundColor = '#c4f5c4'; // Brighter green for high safety (Risk 7–10)
-        }
+        row.appendChild(yesCell);
+        row.appendChild(noCell);
 
         tbody.appendChild(row);
       }
 
+      // Adjust clear row to match new column count (7 columns)
       const clearRow = document.createElement("tr");
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 7; i++) {
         const emptyCell = document.createElement("td");
         clearRow.appendChild(emptyCell);
       }
-      const clearCell = document.createElement("td");
-      clearCell.style.textAlign = "center";
-      clearCell.style.paddingTop = "6px";
-
-      const clearButton = document.createElement("button");
-      clearButton.textContent = "CLEAR";
-      clearButton.className = "button";
-      clearButton.style.transform = "scale(0.75)";
-      clearButton.style.transformOrigin = "center";
-      clearButton.onclick = clearAllCheckboxes;
-      clearButton.style.cursor = "pointer";
-
-      clearCell.appendChild(clearButton);
-      clearRow.appendChild(clearCell);
       tbody.appendChild(clearRow);
     }
 
@@ -808,25 +823,54 @@
           cache: 'no-store'
         });
         const data = await res.json();
+        // Save latestKalshiMarkets for strike table use
+        latestKalshiMarkets = data.markets || [];
 
         const tbody = document.querySelector('#kalshi-api-table tbody');
         if (data.markets.length > 0) {
           tbody.innerHTML = '';
-
-          data.markets.filter(m => m.volume >= 100 && m.yes_ask < 100 && m.no_ask < 100).forEach(market => {
+          data.markets.forEach(market => {
             const strike = `$${Math.round(market.floor_strike).toLocaleString()}`;
-            const yesAsk = Math.round(market.yes_ask);
-            const noAsk = Math.round(market.no_ask);
+            const yesAsk = (typeof market.yes_ask === "number") ? Math.round(market.yes_ask) : 0;
+            const noAsk = (typeof market.no_ask === "number") ? Math.round(market.no_ask) : 0;
+            const volume = (typeof market.volume === "number") ? market.volume : 0;
+            let yesClass, noClass, yesAttr, noAttr;
+            // New rules:
+            // - If volume < 50, both disabled.
+            // - Else, enable only the button with the higher ask price.
+            // - Any button with ask price < 40 is always disabled.
+            if (volume < 50) {
+              yesClass = 'price-box disabled';
+              noClass = 'price-box disabled';
+              yesAttr = '';
+              noAttr = '';
+            } else {
+              if (yesAsk < 40) {
+                yesClass = 'price-box disabled';
+                yesAttr = '';
+              } else if (yesAsk > noAsk) {
+                yesClass = 'price-box';
+                yesAttr = `onclick="showPopup('${strike}', 'Yes', ${yesAsk})"`;
+              } else {
+                yesClass = 'price-box disabled';
+                yesAttr = '';
+              }
+              if (noAsk < 40) {
+                noClass = 'price-box disabled';
+                noAttr = '';
+              } else if (noAsk > yesAsk) {
+                noClass = 'price-box';
+                noAttr = `onclick="showPopup('${strike}', 'No', ${noAsk})"`;
+              } else {
+                noClass = 'price-box disabled';
+                noAttr = '';
+              }
+            }
             const row = document.createElement('tr');
-            const yesClass = yesAsk < noAsk ? 'price-box disabled' : 'price-box';
-            const noClass = noAsk < yesAsk ? 'price-box disabled' : 'price-box';
-            const yesAttr = yesAsk < noAsk ? '' : `onclick="showPopup('${strike}', 'Yes', ${yesAsk})"`;
-            const noAttr = noAsk < yesAsk ? '' : `onclick="showPopup('${strike}', 'No', ${noAsk})"`;
-
             row.innerHTML = `
               <td>${strike}</td>
-              <td><span class="${yesClass}" ${yesAttr}>${yesAsk}</span></td>
-              <td><span class="${noClass}" ${noAttr}>${noAsk}</span></td>
+              <td><span class="${yesClass}" ${yesAttr}>${yesAsk > 0 ? yesAsk : '0'}</span></td>
+              <td><span class="${noClass}" ${noAttr}>${noAsk > 0 ? noAsk : '0'}</span></td>
             `;
             tbody.appendChild(row);
           });
