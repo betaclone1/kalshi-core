@@ -169,12 +169,16 @@
   </div>
   <div id="tab-buttons" style="display: flex; border-bottom: 1px solid #bbb; margin-bottom: 20px; padding-left: 10px;">
     <button onclick="switchTab('monitor')" style="padding: 6px 14px; font-weight: bold; border: none; background: #eee; font-size: 0.9rem; margin-right: 6px;" id="btn-monitor">Trade Monitor</button>
+    <button onclick="switchTab('trade-log')" style="padding: 6px 14px; font-weight: bold; border: none; background: #ccc; font-size: 0.9rem; margin-right: 6px;" id="btn-trade-log">Trade Log</button>
     <button onclick="switchTab('log')" style="padding: 6px 14px; font-weight: bold; border: none; background: #ccc; font-size: 0.9rem; margin-right: 6px;" id="btn-log">History</button>
     <button onclick="switchTab('settings')" style="padding: 6px 14px; font-weight: bold; border: none; background: #ccc; font-size: 0.9rem; margin-right: 6px;" id="btn-settings">Settings</button>
   </div>
   <div id="tab-container" style="margin-top: -10px;">
     <div id="tab-monitor" style="width: 100%; height: 100%; border: none; padding: 0; margin: 0;">
       <iframe id="monitor-iframe" style="width: 100%; height: 100vh; border: none;"></iframe>
+    </div>
+    <div id="tab-trade-log" style="display: none; padding: 0; margin: 0; height: 100vh;">
+      <iframe src="tabs/trade_log.html" style="width: 100%; height: 100vh; border: none;" id="trade-log-iframe"></iframe>
     </div>
     <div id="tab-log" style="display: none; padding: 0;">
       <iframe src="tabs/history.html" style="width: 100%; height: 100vh; border: none;" id="log-iframe"></iframe>
@@ -543,19 +547,25 @@
 
     function switchTab(tab) {
       const monitorTab = document.getElementById("tab-monitor");
+      const tradeLogTab = document.getElementById("tab-trade-log");
       const logTab = document.getElementById("tab-log");
       const settingsTab = document.getElementById("tab-settings");
 
       const btnMonitor = document.getElementById("btn-monitor");
+      const btnTradeLog = document.getElementById("btn-trade-log");
       const btnLog = document.getElementById("btn-log");
       const btnSettings = document.getElementById("btn-settings");
 
       monitorTab.style.display = (tab === 'monitor') ? 'block' : 'none';
+      tradeLogTab.style.display = (tab === 'trade-log') ? 'block' : 'none';
       logTab.style.display = (tab === 'log') ? 'block' : 'none';
       settingsTab.style.display = (tab === 'settings') ? 'block' : 'none';
 
       btnMonitor.style.background = (tab === 'monitor') ? '#eee' : '#ccc';
       btnMonitor.className = (tab === 'monitor') ? '' : 'inactive';
+
+      btnTradeLog.style.background = (tab === 'trade-log') ? '#eee' : '#ccc';
+      btnTradeLog.className = (tab === 'trade-log') ? '' : 'inactive';
 
       btnLog.style.background = (tab === 'log') ? '#eee' : '#ccc';
       btnLog.className = (tab === 'log') ? '' : 'inactive';

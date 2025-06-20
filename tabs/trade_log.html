@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trade Log</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      font-size: 0.9rem;
+      background: #fff;
+      color: #333;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 6px 10px;
+      text-align: center;
+    }
+    th {
+      background-color: #f4f4f4;
+      font-weight: bold;
+    }
+    tbody tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    caption {
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <table id="trade-log-table" aria-label="Trade Log Table">
+    <caption>All Trades</caption>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Date</th>
+        <th>Time</th>
+        <th>Contract</th>
+        <th>Strike</th>
+        <th>Side (Y/N)</th>
+        <th>Price</th>
+        <th>Position</th>
+        <th>Status</th>
+        <th>Closed At</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    async function fetchAllTrades() {
+      console.log('Fetching trades at', new Date().toLocaleTimeString());
+      try {
+        const res = await fetch('/trades', { cache: 'no-store' });
+        if (!res.ok) throw new Error('Network response was not ok');
+        const trades = await res.json();
+        renderTrades(trades);
+      } catch (error) {
+        const tbody = document.querySelector('#trade-log-table tbody');
+        tbody.innerHTML = `<tr><td colspan="10" style="color:red;">Failed to load trades: ${error.message}</td></tr>`;
+      }
+    }
+
+    function renderTrades(trades) {
+      const tbody = document.querySelector('#trade-log-table tbody');
+      tbody.innerHTML = '';
+      if (!Array.isArray(trades) || trades.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10">No trades found.</td></tr>';
+        return;
+      }
+      for (const trade of trades) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${trade.id || ''}</td>
+          <td>${trade.date || ''}</td>
+          <td>${trade.time || ''}</td>
+          <td>${trade.contract || ''}</td>
+          <td>${trade.strike || ''}</td>
+          <td>${trade.side || ''}</td>
+          <td>${trade.price !== undefined ? trade.price.toFixed(2) : ''}</td>
+          <td>${trade.position || ''}</td>
+          <td>${trade.status || ''}</td>
+          <td>${trade.closed_at || ''}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchAllTrades();
+      setInterval(fetchAllTrades, 5000);
+    });
+  </script>
+</body>
+</html>

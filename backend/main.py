@@ -418,6 +418,16 @@ def kalshi_market_snapshot():
     except Exception:
         return {"markets": []}
 
+
+
+# Trade manager integration
+from trade_manager import router as trade_router, start_trade_monitor
+app.include_router(trade_router)
+
+@app.on_event("startup")
+async def startup_event():
+    start_trade_monitor()
+
 if __name__ == "__main__":
     import threading
     threading.Thread(target=start_websocket, daemon=True).start()
