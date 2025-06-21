@@ -3,6 +3,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import os
 from datetime import datetime, timedelta
 import pytz
@@ -13,6 +14,20 @@ from dateutil import parser
 DB_PATH = os.path.join(os.path.dirname(__file__), "api", "coinbase-api", "coinbase-btc", "data", "btc_price_history.db")
 
 app = FastAPI()
+
+# CORS setup
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Serve heartbeat file
 app.mount(

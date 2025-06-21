@@ -30,7 +30,7 @@ def is_trade_expired(trade):
 router = APIRouter()
 
 # Define path for the trades database file
-DB_TRADES_PATH = os.path.join(os.path.dirname(__file__), "trade_history/trades.db")
+DB_TRADES_PATH = os.path.join(os.path.dirname(__file__), "trade_history", "trades.db")
 
 # Initialize trades DB and table
 def init_trades_db():

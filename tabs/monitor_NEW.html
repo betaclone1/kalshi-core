@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Monitor Tab</title>
+<link href="https://fonts.googleapis.com/css2?family=Chivo+Mono&display=swap" rel="stylesheet" />
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background-color: #2e3846; /* grey/blue tone */
+    color: white;
+    overflow: hidden;
+  }
+
+  body, code, pre, input, textarea {
+    font-family: 'Chivo Mono', monospace;
+  }
+
+  #container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .column {
+    width: 33.3333vw;
+    overflow-y: auto;
+    padding: 10px;
+  }
+
+  .column:first-child {
+    border-left: none;
+  }
+
+  .panel-container {
+    width: 100%;
+    padding: 10px;
+    background-color: #3c495e;
+    box-sizing: border-box;
+    border-radius: 6px;
+    margin-bottom: 10px;
+  }
+  .panel-table {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+  }
+
+  .panel-content {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+  }
+
+  #tickerPanel {
+    /* height removed to avoid conflicts */
+    flex-shrink: 0;
+    overflow: auto;
+    border-collapse: collapse;
+    color: white;
+    padding-top: 20px;
+  }
+
+  #tickerPanel td {
+    padding: 4px;
+    text-align: left;
+    vertical-align: bottom;
+  }
+
+  #tickerPanel tr.instrument-row td {
+    padding-bottom: 0;
+  }
+
+  #tickerPanel tr.price-row td {
+    font-size: 300%;
+    padding-top: 0;
+    padding-bottom: 0;
+    vertical-align: baseline;
+  }
+
+  #tickerPanel tr.change-row td {
+    font-size: 70%;
+    padding-bottom: 10px;
+  }
+
+  #tickerPanel tr.chart-row td {
+    height: 100%;
+    vertical-align: top;
+    padding: 0;
+  }
+
+  #newPanel {
+    margin-top: 5px;
+    border-bottom: 1px solid #a0a9b8;
+    text-align: left;
+    vertical-align: top;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  /* #momentumPanel styles merged into .panel-container above */
+</style>
+</head>
+<body>
+  
+  <div id="container">
+    <div class="column" id="col1">
+      <div class="panel-container" style="height: 500px;">
+        <table id="tickerPanel" class="panel-table">
+          <tbody>
+            <tr class="instrument-row">
+              <td id="ticker-instrument-cell">
+                <select id="ticker-picker" name="ticker">
+                  <option value="BTC">BTC/USD</option>
+                  <option value="ETH">ETH/USD</option>
+                </select>
+                <span id="ticker-display">BTC/USD</span>
+              </td>
+            </tr>
+            <tr class="price-row">
+              <td id="btc-price-value">$—</td>
+            </tr>
+            <tr class="change-row">
+              <td id="btc-changes-cell">1h <span id="change-1h">—</span> &nbsp;&nbsp; 3h <span id="change-3h">—</span> &nbsp;&nbsp; 1d <span id="change-1d">—</span></td>
+            </tr>
+            <tr class="chart-row">
+              <td><div id="tradingview_12345"></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-container" style="min-height: 10px;">
+        <div class="panel-content" id="momentumPanelContent">
+          <div style="display: flex; gap: 10px;">
+            <table id="momentumPanel" style="min-width: 115px; border-collapse: collapse; border: 1px solid #ccc; color: white; font-family: 'Chivo Mono', monospace;">
+              <tbody>
+                <tr style="border: 1px solid #ccc; height: auto;">
+                  <td style="text-align: left; font-size: 12px; opacity: 0.7; padding-left: 8px; border: 1px solid #ccc;">Momentum</td>
+                </tr>
+                <tr style="border: 1px solid #ccc;">
+                  <td style="font-size: 25px; font-weight: bold; text-align: center; border: 1px solid #ccc; padding: 8px;" colspan="1"><span id="momentum-score-value">—</span></td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #ccc; padding: 8px; font-size: 12px; font-family: 'Chivo Mono', monospace;">
+                    <span style="display:inline-block; width:40px; text-align:right; padding-right:6px; font-weight: normal;">1m:</span>
+                    <span id="delta-1m" style="display:inline-block; width:40px; text-align:left; font-weight: normal;">—</span><br>
+                    <span style="display:inline-block; width:40px; text-align:right; padding-right:6px; font-weight: normal;">2m:</span>
+                    <span id="delta-2m" style="display:inline-block; width:40px; text-align:left; font-weight: normal;">—</span><br>
+                    <span style="display:inline-block; width:40px; text-align:right; padding-right:6px; font-weight: normal;">3m:</span>
+                    <span id="delta-3m" style="display:inline-block; width:40px; text-align:left; font-weight: normal;">—</span><br>
+                    <span style="display:inline-block; width:40px; text-align:right; padding-right:6px; font-weight: normal;">4m:</span>
+                    <span id="delta-4m" style="display:inline-block; width:40px; text-align:left; font-weight: normal;">—</span><br>
+                    <hr style="border: none; border-top: 1px solid #888; margin: 4px 0;">
+                    <span style="display:inline-block; width:40px; text-align:right; padding-right:6px; font-weight: normal;">15m:</span>
+                    <span id="delta-15m" style="display:inline-block; width:40px; text-align:left; font-weight: normal;">—</span><br>
+                    <span style="display:inline-block; width:40px; text-align:right; padding-right:6px; font-weight: normal;">30m:</span>
+                    <span id="delta-30m" style="display:inline-block; width:40px; text-align:left; font-weight: normal;">—</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <table style="width: 30%; border: 1px solid #ccc; color: white; font-family: 'Chivo Mono', monospace;">
+              <tbody>
+                <tr><td><canvas id="momentum-bar-chart" width=150% height="150" style="display: block; margin: auto;"></canvas></td></tr>
+              </tbody>
+            </table>
+            <table style="min-width: 45%; border: 1px solid #ccc; color: white; font-family: 'Chivo Mono', monospace;">
+              <tbody>
+                <tr>
+                  <td>
+                    <canvas id="rolling-momentum-chart" width="280" height="170" style="display: block; margin: auto;"></canvas>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+   
+  </div>
+   
+  
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+  <script type="text/javascript">
+    new TradingView.widget({
+      "width": "100%",
+      "height": "100%",
+      "symbol": "COINBASE:BTCUSD",
+      "interval": "1",
+      "timezone": "Etc/UTC",
+      "theme": "light",
+      "style": "1",
+      "locale": "en",
+      "toolbar_bg": "#f1f3f6",
+      "enable_publishing": false,
+      "hide_top_toolbar": true,
+      "hide_legend": true,
+      "save_image": false,
+      "disabled_features": ["volume_force_overlay", "create_volume_indicator_by_default"],
+      "studies": [],
+      "container_id": "tradingview_12345"
+    });
+  </script>
+
+  <script>
+    window.momentumData = {
+      deltas: {
+        '1m': null,
+        '2m': null,
+        '3m': null,
+        '4m': null,
+        '15m': null,
+        '30m': null,
+      },
+      weightedScore: null,
+    };
+
+    function formatNumber(val, addPercent) {
+      if (val === null || val === undefined || isNaN(val)) return '—';
+      const prefix = val >= 0 ? '+' : '';
+      return prefix + val.toFixed(2) + (addPercent ? '%' : '');
+    }
+
+    function updateMomentumPanel() {
+      const { deltas, weightedScore } = window.momentumData;
+
+      // Ensure rollingScores array exists
+      if (!window.momentumData.rollingScores) {
+        window.momentumData.rollingScores = [];
+      }
+
+      const momentumScoreEl = document.getElementById('momentum-score-value');
+      if (momentumScoreEl) {
+        momentumScoreEl.textContent = formatNumber(weightedScore, false);
+      }
+
+      // After updating the display, append weightedScore to rollingScores and trim to 40
+      if (typeof weightedScore === "number" && !isNaN(weightedScore)) {
+        window.momentumData.rollingScores.push(weightedScore);
+        if (window.momentumData.rollingScores.length > 40) {
+          window.momentumData.rollingScores = window.momentumData.rollingScores.slice(-40);
+        }
+      }
+
+      Object.entries(deltas).forEach(([key, val]) => {
+        const el = document.getElementById(`delta-${key}`);
+        if (el) el.textContent = formatNumber(val, false);
+      });
+
+      drawMomentumBarChart(deltas);
+      drawRollingMomentumChart();
+    }
+
+    function drawMomentumBarChart(deltas) {
+      const canvas = document.getElementById('momentum-bar-chart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw vertical axis 45px from the left
+      const axisX = 45;
+      ctx.strokeStyle = '#aaa';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(axisX, 10);
+      ctx.lineTo(axisX, height - 10);
+      ctx.stroke();
+
+      // Draw ticks and labels for -0.40, -0.20, 0, 0.20, 0.40
+      const ticks = [-0.40, -0.20, 0, 0.20, 0.40];
+      const centerY = height / 2;
+      const yForValue = v => {
+        // -0.40 maps to bottom, 0.40 to top, 0 to centerY
+        // Use margin of 20px top/bottom as before
+        const minY = height - 20;
+        const maxY = 20;
+        return centerY - (v * ((height / 2) - 20) / 0.40);
+      };
+      ctx.font = '11px monospace';
+      ctx.fillStyle = '#ccc';
+      ctx.textAlign = 'right';
+      ticks.forEach(tick => {
+        const y = yForValue(tick);
+        // Draw tick mark
+        ctx.strokeStyle = '#aaa';
+        ctx.beginPath();
+        ctx.moveTo(axisX - 10, y);
+        ctx.lineTo(axisX, y);
+        ctx.stroke();
+        // Draw label
+        ctx.fillText(tick.toFixed(2), axisX - 15, y + 4);
+      });
+
+      // Draw horizontal center line
+      ctx.strokeStyle = '#888';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, centerY);
+      ctx.lineTo(width, centerY);
+      ctx.stroke();
+
+      // Draw bars shifted right (start after axis)
+      const keys = ['4m', '3m', '2m', '1m'];
+      const barWidth = 15;
+      // All bars start at offset 55px (10px after axis for margin)
+      const barOffsetX = 55;
+      const spacing = (width - barOffsetX - keys.length * barWidth) / (keys.length + 1);
+      // Bar scaling: always use range -0.40 to 0.40 for visual consistency
+      const scale = (height / 2 - 20) / 0.40;
+      keys.forEach((key, i) => {
+        const val = deltas[key];
+        if (val === null || val === undefined || isNaN(val)) return;
+        const x = barOffsetX + spacing + i * (barWidth + spacing);
+        const barHeight = Math.abs(val) * scale;
+        ctx.fillStyle = val >= 0 ? '#28a745' : '#dc3545';
+        if (val >= 0) {
+          ctx.fillRect(x, centerY - barHeight, barWidth, barHeight);
+        } else {
+          ctx.fillRect(x, centerY, barWidth, barHeight);
+        }
+        // Draw label below bar
+        ctx.fillStyle = 'white';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(key, x + barWidth / 2, height - 5);
+      });
+    }
+
+    function fetchCore() {
+      fetch('http://localhost:8000/core')
+        .then(response => response.json())
+        .then(data => {
+          window.momentumData.deltas['1m'] = data.delta_1m;
+          window.momentumData.deltas['2m'] = data.delta_2m;
+          window.momentumData.deltas['3m'] = data.delta_3m;
+          window.momentumData.deltas['4m'] = data.delta_4m;
+          window.momentumData.deltas['15m'] = data.delta_15m;
+          window.momentumData.deltas['30m'] = data.delta_30m;
+
+          window.momentumData.weightedScore = (
+            window.momentumData.deltas['1m'] * 0.3 +
+            window.momentumData.deltas['2m'] * 0.25 +
+            window.momentumData.deltas['3m'] * 0.2 +
+            window.momentumData.deltas['4m'] * 0.15 +
+            window.momentumData.deltas['15m'] * 0.05 +
+            window.momentumData.deltas['30m'] * 0.05
+          );
+
+          updateMomentumPanel();
+        })
+        .catch(console.error);
+    }
+
+    fetchCore();
+    setInterval(fetchCore, 1000);
+
+    // Draw rolling momentum chart in the third table
+    function drawRollingMomentumChart() {
+      const canvas = document.getElementById('rolling-momentum-chart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+
+      // Margins/layout
+      const margin = { top: 20, right: 20, bottom: 40, left: 40 };
+      const chartWidth = width - margin.left - margin.right;
+      const chartHeight = height - margin.top - margin.bottom;
+
+      // Draw vertical axis line at 40px from the left
+      ctx.strokeStyle = '#aaa';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top);
+      ctx.lineTo(margin.left, height - margin.bottom);
+      ctx.stroke();
+
+      // Y-axis scale: -0.40 (bottom) to 0.40 (top)
+      const yMin = -0.40;
+      const yMax = 0.40;
+      function yForValue(v) {
+        // Map v in [yMin, yMax] to [chartHeight+margin.top, margin.top]
+        const y = margin.top + ((yMax - v) / (yMax - yMin)) * chartHeight;
+        return y;
+      }
+
+      // Draw tick marks and labels for -0.40, -0.20, 0, 0.20, 0.40 (vertical axis)
+      ctx.font = '11px monospace';
+      ctx.fillStyle = '#ccc';
+      ctx.textAlign = 'right';
+      const ticks = [-0.40, -0.20, 0, 0.20, 0.40];
+      ticks.forEach(tick => {
+        const y = yForValue(tick);
+        // Draw tick mark
+        ctx.strokeStyle = '#aaa';
+        ctx.beginPath();
+        ctx.moveTo(margin.left - 8, y);
+        ctx.lineTo(margin.left, y);
+        ctx.stroke();
+        // Draw label
+        ctx.fillText(tick.toFixed(2), margin.left - 12, y + 4);
+      });
+
+      // Draw horizontal zero line
+      const zeroY = yForValue(0);
+      ctx.strokeStyle = '#888';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(margin.left, zeroY);
+      ctx.lineTo(width - margin.right, zeroY);
+      ctx.stroke();
+
+      // === Draw horizontal axis line, ticks, and labels ===
+      // Axis line near bottom margin
+      const axisY = height - margin.bottom + 5;
+      ctx.strokeStyle = '#aaa';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(margin.left, axisY);
+      ctx.lineTo(width - margin.right, axisY);
+      ctx.stroke();
+
+      // Decide number of ticks based on chart width: about 5-6
+      const approxTicks = Math.max(5, Math.min(6, Math.round(chartWidth / 60)));
+      const nTicks = approxTicks;
+      // For minute labels, use 0 to (nTicks-1)
+      ctx.font = '11px monospace';
+      ctx.fillStyle = '#ccc';
+      ctx.textAlign = 'center';
+      const tickHeight = 5;
+      const labelOffset = 15;
+      for (let i = 0; i < nTicks; ++i) {
+        const x = margin.left + (i * chartWidth) / (nTicks - 1);
+        // Draw tick mark
+        ctx.strokeStyle = '#aaa';
+        ctx.beginPath();
+        ctx.moveTo(x, axisY);
+        ctx.lineTo(x, axisY + tickHeight);
+        ctx.stroke();
+        // Draw label
+        ctx.fillText(i.toString(), x, axisY + tickHeight + 25);
+      }
+
+      // === End horizontal axis and ticks ===
+
+      // Plot the momentum score points scaled accordingly
+      // Use history from window.momentumData.rollingScores or fallback to last 40 weightedScore values
+      let points = [];
+      if (window.momentumData.rollingScores && Array.isArray(window.momentumData.rollingScores)) {
+        points = window.momentumData.rollingScores.slice(-40);
+      } else if (typeof window.momentumData.weightedScore === 'number') {
+        points = Array(40).fill(window.momentumData.weightedScore);
+      }
+      // If not enough points, pad with nulls
+      if (points.length < 2) {
+        // Not enough data to plot
+        return;
+      }
+      // X scale
+      const n = points.length;
+      const xStep = n > 1 ? chartWidth / (n - 1) : 0;
+      // Helper to get point at index i (returns {x, y})
+      function getPoint(i) {
+        const v = points[i];
+        return {
+          x: margin.left + i * xStep,
+          y: yForValue(v)
+        };
+      }
+      // Smoothing factor (0.2-0.4 is typical)
+      const smooth = 0.2;
+      // Find valid points (skip nulls/NaNs)
+      let validIndices = [];
+      for (let i = 0; i < n; ++i) {
+        const v = points[i];
+        if (v !== null && v !== undefined && !isNaN(v)) {
+          validIndices.push(i);
+        }
+      }
+      if (validIndices.length < 2) return;
+
+      // Helper: map a value in [-0.4, 0.4] to a color gradient (red for negative, green for positive)
+      function colorForValue(val) {
+        // Clamp value to [-0.4, 0.4]
+        val = Math.max(-0.4, Math.min(0.4, val));
+        // Map negative: -0.4 (deep red) to 0 (light red)
+        // Map positive: 0 (light green) to 0.4 (deep green)
+        if (val < 0) {
+          // Red: from #ffb3b3 (light) to #dc3545 (deep)
+          // Interpolate between (255,179,179) and (220,53,69)
+          const t = (val + 0.4) / 0.4; // 0 at -0.4, 1 at 0
+          const r = Math.round(220 * (1 - t) + 255 * t);
+          const g = Math.round(53 * (1 - t) + 179 * t);
+          const b = Math.round(69 * (1 - t) + 179 * t);
+          return `rgb(${r},${g},${b})`;
+        } else {
+          // Green: from #b3ffb3 (light) to #28a745 (deep)
+          // Interpolate between (179,255,179) and (40,167,69)
+          const t = val / 0.4; // 0 at 0, 1 at 0.4
+          const r = Math.round(179 * (1 - t) + 40 * t);
+          const g = Math.round(255 * (1 - t) + 167 * t);
+          const b = Math.round(179 * (1 - t) + 69 * t);
+          return `rgb(${r},${g},${b})`;
+        }
+      }
+
+      // Draw smooth line using cubic Bézier curves, segment by segment with color
+      for (let j = 1; j < validIndices.length; ++j) {
+        const i0 = validIndices[j - 1];
+        const i1 = validIndices[j];
+        const v0 = points[i0];
+        const v1 = points[i1];
+        // Compute average value for color mapping
+        const avgVal = (v0 + v1) / 2;
+        ctx.strokeStyle = colorForValue(avgVal);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const p0 = getPoint(i0);
+        const p1 = getPoint(i1);
+        // Previous/next indices for control points
+        const iPrev = validIndices[j - 2] !== undefined ? validIndices[j - 2] : i0;
+        const iNext = validIndices[j + 1] !== undefined ? validIndices[j + 1] : i1;
+        const pPrev = getPoint(iPrev);
+        const pNext = getPoint(iNext);
+        // Calculate control points
+        // cp1: from p0 toward pNext
+        const dx1 = (p1.x - pPrev.x) * smooth;
+        const dy1 = (p1.y - pPrev.y) * smooth;
+        const cp1x = p0.x + dx1;
+        const cp1y = p0.y + dy1;
+        // cp2: from p1 back toward pPrev
+        const dx2 = (pNext.x - p0.x) * -smooth;
+        const dy2 = (pNext.y - p0.y) * -smooth;
+        const cp2x = p1.x + dx2;
+        const cp2y = p1.y + dy2;
+        ctx.moveTo(p0.x, p0.y);
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p1.x, p1.y);
+        ctx.stroke();
+      }
+      // Optionally: draw points as small circles
+      // ctx.fillStyle = '#fff';
+      // for (let i = 0; i < n; ++i) {
+      //   const v = points[i];
+      //   if (v === null || v === undefined || isNaN(v)) continue;
+      //   const x = margin.left + i * xStep;
+      //   const y = yForValue(v);
+      //   ctx.beginPath();
+      //   ctx.arc(x, y, 2, 0, 2 * Math.PI);
+      //   ctx.fill();
+      // }
+    }
+  </script>
+  <script>
+    function getBTCChanges() {
+      fetch("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=60")
+        .then(response => response.json())
+        .then(json => {
+          const data = json.result.XXBTZUSD;
+
+          const closeNow = parseFloat(data[data.length - 1][4]);
+          const close1h = parseFloat(data[data.length - 2][4]);
+          const close3h = parseFloat(data[data.length - 4][4]);
+          const close1d = parseFloat(data[data.length - 25][4]);
+
+          const pctChange = (from, to) => (to - from) / from;
+
+          const change1h = (pctChange(close1h, closeNow) * 100).toFixed(2);
+          const change3h = (pctChange(close3h, closeNow) * 100).toFixed(2);
+          const change1d = (pctChange(close1d, closeNow) * 100).toFixed(2);
+
+          const el1h = document.getElementById("change-1h");
+          const el3h = document.getElementById("change-3h");
+          const el1d = document.getElementById("change-1d");
+
+          const decorateChange = (el, val) => {
+            const num = parseFloat(val);
+            const triangle = num >= 0 ? " ▲" : " ▼";
+            el.textContent = `${Math.abs(num).toFixed(2)}%${triangle}`;
+            el.style.color = "#fff";
+            el.style.backgroundColor = num >= 0 ? "#28a745" : "#dc3545";
+            el.style.padding = "2px 6px";
+            el.style.borderRadius = "4px";
+            el.style.display = "inline-block";
+          };
+
+          decorateChange(el1h, change1h);
+          decorateChange(el3h, change3h);
+          decorateChange(el1d, change1d);
+        })
+        .catch(error => {
+          console.error("Kraken fetch error:", error);
+        });
+    }
+    getBTCChanges();
+
+    // Helper function to format numbers as $XX,XXX.XX
+    function formatUSD(val) {
+      if (typeof val !== "number" || isNaN(val)) return "—";
+      return "$" + val.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    // Helper: decorate change cell with color and triangle
+    function decorateChange(el, val) {
+      const num = parseFloat(val);
+      if (isNaN(num)) {
+        el.textContent = "—";
+        el.style.backgroundColor = "";
+        el.style.color = "";
+        return;
+      }
+      const triangle = num >= 0 ? " ▲" : " ▼";
+      el.textContent = `${Math.abs(num).toFixed(2)}%${triangle}`;
+      // Removed color styling as per instructions
+      // el.style.color = "#fff";
+      // el.style.backgroundColor = num >= 0 ? "#28a745" : "#dc3545";
+      el.style.padding = "2px 6px";
+      el.style.borderRadius = "4px";
+      el.style.display = "inline-block";
+    }
+
+    // Main live fetcher for other UI updates except momentum panel
+    function fetchOtherCoreData() {
+      fetch('http://localhost:8000/core')
+        .then(response => response.json())
+        .then(data => {
+          // BTC price
+          if ('btc_price' in data) {
+            const price = Number(data.btc_price);
+            const el = document.getElementById('btc-price-value');
+            if (el) el.textContent = formatUSD(price);
+          }
+
+          // % changes
+          if ('change_1h' in data) {
+            const el = document.getElementById('change-1h');
+            if (el) decorateChange(el, data.change_1h);
+          }
+          if ('change_3h' in data) {
+            const el = document.getElementById('change-3h');
+            if (el) decorateChange(el, data.change_3h);
+          }
+          if ('change_1d' in data) {
+            const el = document.getElementById('change-1d');
+            if (el) decorateChange(el, data.change_1d);
+          }
+        })
+        .catch(error => {
+          console.error('Live core fetch error:', error);
+        });
+    }
+
+    fetchOtherCoreData();
+    setInterval(fetchOtherCoreData, 1000);
+  </script>
+
+<script>
+  const container = document.getElementById('container');
+  const col1 = document.getElementById('col1');
+  const col2 = document.getElementById('col2');
+  const col3 = document.getElementById('col3');
+</script>
+
+</script>
+
+<script>
+  // Listen for change events on the ticker-picker select and update ticker-display cell
+  document.addEventListener('DOMContentLoaded', function() {
+    const tickerSelect = document.getElementById('ticker-picker');
+    const tickerDisplay = document.getElementById('ticker-display');
+    if (tickerSelect && tickerDisplay) {
+      // Set initial display to selected value
+      tickerDisplay.textContent = tickerSelect.value;
+      tickerSelect.addEventListener('change', function() {
+        tickerDisplay.textContent = tickerSelect.value;
+      });
+    }
+  });
+</script>
+</body>
+</html>
