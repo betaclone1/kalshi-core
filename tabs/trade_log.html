@@ -71,6 +71,22 @@
       }
     }
 
+    function formatToESTTime(isoString) {
+      if (!isoString) return '';
+      const date = new Date(isoString);
+      try {
+        return new Intl.DateTimeFormat('en-US', {
+          hour12: false,
+          timeZone: 'America/New_York',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }).format(date);
+      } catch {
+        return date.toLocaleTimeString('en-US', { hour12: false });
+      }
+    }
+
     function renderTrades(trades) {
       const tbody = document.querySelector('#trade-log-table tbody');
       tbody.innerHTML = '';
@@ -90,7 +106,7 @@
           <td>${trade.price !== undefined ? trade.price.toFixed(2) : ''}</td>
           <td>${trade.position || ''}</td>
           <td>${trade.status || ''}</td>
-          <td>${trade.closed_at || ''}</td>
+          <td>${formatToESTTime(trade.closed_at)}</td>
         `;
         tbody.appendChild(tr);
       }

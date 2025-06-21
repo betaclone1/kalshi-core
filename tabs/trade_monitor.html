@@ -320,7 +320,7 @@
                 });
               </script>
             </div>
-            <div id="momentum-panel" style="padding: 20px; border: 1px solid black; border-radius: 10px; width: 505px; box-sizing: border-box; margin-top: 0;">
+            <div id="momentum-panel" style="padding: 20px; border: 1px solid #dddddd; border-radius: 0; width: 505px; box-sizing: border-box; margin-top: 0;">
               <div class="value small" id="momentum-score" style="font-weight: bold; text-align: center; font-size: 100%;">Momentum:</div>
               <div class="value small" id="momentum-score-value" style="text-align: center; font-weight: bold; font-size: 225%;">—</div>
               <br>
@@ -399,12 +399,6 @@
                     </thead>
                     <tbody></tbody>
                   </table>
-                  <h3 style="margin-top: 10px; font-size: 0.9rem;">Recent Trades</h3>
-                  <div style="max-height: 250px; overflow-y: auto;">
-                    <table id="recent-trades-table" style="width: 100%; font-size: 0.7rem; border-collapse: collapse; table-layout: fixed;">
-                      <tbody></tbody>
-                    </table>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1200,7 +1194,6 @@
       try {
         await postJSON('/trades', tradeData);
         await fetchAndRenderTrades();
-        await fetchAndRenderRecentTrades();
       } catch (err) {
         alert('Failed to submit trade: ' + err.message);
       }
@@ -1315,50 +1308,9 @@
       if (tradesTbody) tradesTbody.innerHTML = '';
     }
 
-    // Fetch and render recent closed trades into recent-trades-table (filtered for last 24h, scrollable)
-    async function fetchAndRenderRecentTrades() {
-      const tradesTbody = document.querySelector('#recent-trades-table tbody');
-      if (!tradesTbody) return;
-      tradesTbody.innerHTML = '';
-      let trades;
-      try {
-        trades = await getJSON('/trades?status=closed');
-      } catch (err) {
-        const row = document.createElement('tr');
-        row.innerHTML = `<td colspan="7" style="color:red;">Failed to fetch recent trades</td>`;
-        tradesTbody.appendChild(row);
-        return;
-      }
-      if (!Array.isArray(trades) || trades.length === 0) {
-        // Show empty state if desired
-        return;
-      }
-      const now = new Date();
-      // Filter trades closed within last 24 hours by comparing date/time strings
-      const filteredTrades = trades.filter(trade => {
-        const dateStr = trade.date || '';
-        const timeStr = trade.time || '00:00:00';
-        const tradeDateTime = new Date(`${dateStr}T${timeStr}`);
-        return (now - tradeDateTime) <= 24 * 60 * 60 * 1000;
-      });
-      for (const trade of filteredTrades) {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td style="text-align:center; padding:4px 10px; width: 60px;">${trade.date || ''}</td>
-          <td style="text-align:center; padding:4px 10px; width: 50px">${trade.time || ''}</td>
-          <td style="text-align:center; padding:4px 10px; width: 50px;">${trade.contract || ''}</td>
-          <td style="text-align:center; padding:4px 10px; width: 50px;">${trade.strike || ''}</td>
-          <td style="text-align:center; padding:4px 10px; width: 30px;">${trade.side || ''}</td>
-          <td style="text-align:center; padding:4px 10px; width: 50px;">${trade.price || ''}</td>
-          <td style="text-align:center; padding:4px 10px; width: 50px;">${trade.position || ''}</td>
-        `;
-        tradesTbody.appendChild(row);
-      }
-    }
 
-    // Call both fetch functions on page load and after adding trades
+    // Call fetchAndRenderTrades on page load and after adding trades
     fetchAndRenderTrades();
-    fetchAndRenderRecentTrades();
   </script>
 </script>
 <script>
@@ -1393,7 +1345,6 @@
       });
       if (!res.ok) throw new Error('Failed to close trade');
       await fetchAndRenderTrades();
-      await fetchAndRenderRecentTrades();
     } catch (err) {
       alert('Error closing trade: ' + err.message);
     }
